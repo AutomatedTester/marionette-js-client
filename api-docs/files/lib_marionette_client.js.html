@@ -364,7 +364,7 @@
       this._state = {
         context: &#x27;content&#x27;,
         scriptTimeout: 5000,
-        searchTimeout: 250
+        searchTimeout: 1000
       };
 
       // give the root client a scope.
@@ -588,7 +588,7 @@
         var value;
         try {
           value = self._transformResultValue(data[responseKey]);
-        } catch(e) {
+        } catch (e) {
           console.log(&#x27;Error: unable to transform marionette response&#x27;, data);
         }
         return self._handleCallback(callback, data.error, value);
@@ -842,6 +842,18 @@
     },
 
     /**
+     * Returns the type of current window.
+     *
+     * @method getWindowType
+     * @param {Function} [callback] executes with window type.
+     * @return {Object} self.
+     */
+     getWindowType: function getWindowType(callback) {
+       var cmd = { type: &#x27;getWindowType&#x27; };
+       return this._sendCommand(cmd, &#x27;value&#x27;, callback);
+     },
+
+    /**
      * Imports a script into the marionette
      * context for the duration of the session.
      *
@@ -948,6 +960,18 @@
     },
 
     /**
+     * Returns the title of current window.
+     *
+     * @method title
+     * @param {Function} [callback] optional receives title.
+     * @return {Object} self.
+     */
+     title: function title(callback) {
+       var cmd = { type: &#x27;getTitle&#x27; };
+       return this._sendCommand(cmd, &#x27;value&#x27;, callback);
+     },
+
+    /**
      * Gets url location for device.
      *
      * @method getUrl
@@ -1048,6 +1072,18 @@
       var cmd = { type: &#x27;getLogs&#x27; };
       return this._sendCommand(cmd, &#x27;value&#x27;, callback);
     },
+
+    /**
+     * Returns a string representation of the DOM in current page.
+     *
+     * @method pageSource
+     * @param {Function} [callback] optional receives the page source.
+     * @return {Object} self.
+     */
+     pageSource: function pageSource(callback) {
+       var cmd = { type: &#x27;getPageSource&#x27; };
+       return this._sendCommand(cmd, &#x27;value&#x27;, callback);
+     },
 
     /**
      * Creates a base64-encoded screenshot of the element, or the current frame

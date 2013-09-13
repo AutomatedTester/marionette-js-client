@@ -712,6 +712,8 @@
       // setup options
       options = options || {};
 
+      var sync = !callback;
+
       // must handle default callback case for sync code
       callback = callback || this.defaultCallback;
 
@@ -721,36 +723,67 @@
       // interval between test being fired.
       var interval = options.interval || DEFAULT_WAIT_FOR_INTERVAL;
 
-      // remember this runs on the host
-      function sleep(interval) {
-        setTimeout(marionetteScriptFinished, interval);
-      }
+      return (sync ? this.waitForSync : this.waitForAsync).call(
+        this, test, callback, interval, timeout);
+    },
 
-      var runtest = function runtest() {
-        if (Date.now() &gt;= timeout) {
-          return callback(new Error(&#x27;waitFor timed out&#x27;));
+    /**
+     * Poll some boolean function until it returns true synchronously.
+     *
+     * @param {Function} test some function that returns a boolean.
+     * @param {Function} callback function to call once our test passes or
+     *     we time out.
+     * @param {number} interval how often to poll in ms.
+     * @param {number} timeout time at which we fail in ms.
+     */
+    waitForSync: function(test, callback, interval, timeout) {
+      while (Date.now() &lt; timeout) {
+        if (test()) {
+          return callback(null);
         }
 
-        // mocha style &quot;done&quot; argument
-        test(function(err, result) {
-          if (err || result)
-            return callback(err, result);
-
-          // test has failed retry
-          this.executeAsyncScript(sleep, [interval], runtest);
-        }.bind(this));
-      }.bind(this);
-
-      // length indicates arity we use mocha style &quot;done&quot; so if an argument
-      // is not passed this test is sync and we fire done with the result
-      // of the given &quot;test&quot; function rather then passing a &quot;done&quot; argument.
-      if (!test.length) {
-        var originalTest = test;
-        test = function(done) {
-          done(null, originalTest());
-        };
+        this.executeAsyncScript(function(waitMillis) {
+          setTimeout(marionetteScriptFinished, waitMillis);
+        }, [interval]);
       }
-      runtest();
+
+      callback(new Error(&#x27;timeout exceeded&#x27;));
+    },
+
+    /**
+     * Poll some boolean function until it returns true asynchronously.
+     *
+     * @param {Function} test some function that returns a boolean.
+     * @param {Function} callback function to call once our test passes or
+     *     we time out.
+     * @param {number} interval how often to poll in ms.
+     * @param {number} timeout time at which we fail in ms.
+     */
+    waitForAsync: function(test, callback, interval, timeout) {
+      if (Date.now() &gt;= timeout) {
+        return callback(new Error(&#x27;timeout exceeded&#x27;));
+      }
+
+      var result, err;
+      try {
+        result = test();
+      } catch (e) {
+        err = e;
+      }
+
+      if (result || err) {
+        return callback(err || null);
+      }
+
+      var next = this.waitForAsync.bind(
+        this,
+        test,
+        callback,
+        interval,
+        timeout
+      );
+
+      setTimeout(next, interval);
     },
 
     /**
@@ -803,11 +836,24 @@
     },
 
     /**
+     *  Returns the capabilities of the current session.
+     *
+     * @method sessionCapabilities
+     * @param {Function} [callback]
+     *  executed with capabilities of current session.
+     * @return {Object} A JSON representing capabilities.
+     */
+     sessionCapabilities: function sessionCapabilities(callback) {
+       var cmd = { type: &#x27;getSessionCapabilities&#x27; };
+       return this._sendCommand(cmd, &#x27;value&#x27;, callback);
+     },
+
+    /**
      * Callback will receive the id of the current window.
      *
      * @chainable
      * @method getWindow
-     * @param {Function} callback executed with id of current window.
+     * @param {Function} [callback] executed with id of current window.
      * @return {Object} self.
      */
     getWindow: function getWindow(callback) {
@@ -818,9 +864,9 @@
     /**
      * Callback will receive an array of window ids.
      *
-     * @method getWindow
+     * @method getWindows
      * @chainable
-     * @param {Function} callback executes with an array of ids.
+     * @param {Function} [callback] executes with an array of ids.
      */
     getWindows: function getWindows(callback) {
       var cmd = { type: &#x27;getWindows&#x27; };
@@ -945,7 +991,15 @@
     },
 
     /**
-     * setSearchTimeout
+     * Sets a timeout for the find methods.
+     *
+     * When searching for an element using either Marionette.findElement or
+     * Marionette.findElements, the method will continue trying to locate the
+     * element for up to timeout ms.
+     *
+     * This can be useful if, for example, the element you’re looking for might
+     * not exist immediately, because it belongs to a page which is currently
+     * being loaded.
      *
      * @method setSearchTimeout
      * @chainable
